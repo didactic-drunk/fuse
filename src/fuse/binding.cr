@@ -466,9 +466,9 @@ module Fuse
     end
 
     # Functions
-    fun main = fuse_main_real(argc : LibC::Int, argv : LibC::Char**, op : Operations*, op_size : LibC::SizeT, user_data : Void*) : LibC::Int
+#    fun main = fuse_main_real(argc : LibC::Int, argv : LibC::Char**, op : Operations*, op_size : LibC::SizeT, user_data : Void*) : LibC::Int
 
-    fun unmount = fuse_unmount(mountpoint : LibC::Char*, chan : Chan*) : Void
-    fun get_context = fuse_get_context() : Context*
+#    fun unmount = fuse_unmount(mountpoint : LibC::Char*, chan : Chan*) : Void
+#    fun get_context = fuse_get_context() : Context*
   end
 end

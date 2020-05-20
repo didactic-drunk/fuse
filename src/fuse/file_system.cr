@@ -1,3 +1,4 @@
+require "./lib"
 module Fuse
   # Base class for user-defined file systems.  Sub-class it and build your own!
   # Use `#run!` to start it.
@@ -11,17 +12,17 @@ module Fuse
   #  * **path** `String`, the path of the file or directory
   #  * **handle** `UInt64`, a numeric file handle
   #  * **buffer** `Bytes`, a input or output buffer
-  #  * **fi** `Binding::FileInfo`, handle information passed from FUSE
+  #  * **fi** `Lib::FileInfo`, handle information passed from FUSE
   #  * **offset** `LibC::OffT`, an offset in a file or directory listing
   #
   # These arguments may not have explicit data types for readability purposes.
   #
   # Exceptions are noted in each methods documentation.
   class FileSystem
-    property operations : Binding::Operations
+    property operations : Lib::Operations
 
     def initialize
-      @operations = Binding::Operations.new
+      @operations = Lib::Operations.new
       set_up_operations
     end
 
@@ -41,7 +42,7 @@ module Fuse
     end
 
     # Closes a file at *path*.  Please read more about it in
-    # `Binding::Operations#release`.  Return `0` on success.
+    # `Lib::Operations#release`.  Return `0` on success.
     def release(path, handle, fi) : Int32 | Nil
       0
     end
@@ -75,10 +76,12 @@ module Fuse
 
     # Runs the file system.  This will block until the file-system has been
     # unmounted.
-    def run!(argv : Enumerable(String) = ARGV)
-      arguments = ARGV.map(&.to_unsafe).to_unsafe
+    def run!(argv = ARGV)
+      arguments = argv.dup
+      arguments.unshift PROGRAM_NAME
+      arguments = arguments.map(&.to_unsafe)
       data_ptr = self.as(Void*)
-      Fuse::Binding.main(argv.size, arguments, pointerof(@operations), sizeof(Binding::Operations), data_ptr)
+      Lib.main_real(arguments.size, arguments, pointerof(@operations), sizeof(Lib::Operations), data_ptr)
     end
 
     private def set_up_operations
@@ -88,40 +91,40 @@ module Fuse
         result r
       end
 
-      @operations.open = ->(path : LibC::Char*, fi : Binding::FileInfo*) do
+      @operations.open = ->(path : LibC::Char*, fi : Lib::FuseFileInfo*) do
         r = invoke open, String.new(path)
-        fi.value.file_handle = r if r.is_a?(UInt64)
+        fi.value.fh = r if r.is_a?(UInt64)
         result r
       end
 
-      @operations.release = ->(path : LibC::Char*, fi : Binding::FileInfo*) do
+      @operations.release = ->(path : LibC::Char*, fi : Lib::FuseFileInfo*) do
         result invoke_file release, path, fi
       end
 
-      @operations.read = ->(path : LibC::Char*, buf : LibC::Char*, size : LibC::SizeT, offset : LibC::OffT, fi : Binding::FileInfo*) do
+      @operations.read = ->(path : LibC::Char*, buf : LibC::Char*, size : LibC::SizeT, offset : LibC::OffT, fi : Lib::FuseFileInfo*) do
         r = invoke_file read, path, fi, buf.as(UInt8*).to_slice(size), offset
 
         return r if r.is_a?(Int32)
         result r
       end
 
-      @operations.write = ->(path : LibC::Char*, buf : LibC::Char*, size : LibC::SizeT, offset : LibC::OffT, fi : Binding::FileInfo*) do
+      @operations.write = ->(path : LibC::Char*, buf : LibC::Char*, size : LibC::SizeT, offset : LibC::OffT, fi : Lib::FileInfo*) do
         w = invoke_file write, path, fi, buf.as(UInt8*).to_slice(size), offset
         return w if w.is_a?(Int32)
         result w
       end
 
-      @operations.opendir = ->(path : LibC::Char*, fi : Binding::FileInfo*) do
+      @operations.opendir = ->(path : LibC::Char*, fi : Lib::FileInfo*) do
         r = invoke opendir, String.new(path)
-        fi.value.file_handle = r if r.is_a?(UInt64)
+        fi.value.fh = r if r.is_a?(UInt64)
         result r
       end
 
-      @operations.releasedir = ->(path : LibC::Char*, fi : Binding::FileInfo*) do
+      @operations.releasedir = ->(path : LibC::Char*, fi : Lib::FuseFileInfo*) do
         result invoke_file releasedir, path, fi
       end
 
-      @operations.readdir = ->(path : LibC::Char*, buf : Void*, filler : Binding::FillDir, offset : LibC::OffT, fi : Binding::FileInfo*) do
+      @operations.readdir = ->(path : LibC::Char*, buf : Void*, filler : Lib::FillDirT, offset : LibC::OffT, fi : Lib::FuseFileInfo*) do
         r = invoke_file readdir, path, fi, offset
 
         result r if r.nil? || r.is_a?(Int32)
