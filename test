@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+crystal build -Dpreview_mt --error-trace sample/mid_level.cr 2>&1 | tee build.out
+set +e
+
+(sleep 0.5 ; (find mnt -ls ; ls -ali mnt ; cat mnt/foo) >& find.out ; sleep 0.5 ; killall mid_level ; sleep 0.2 ; cat find.out) & 
+
+#(sleep 0.5 ; (find mnt -ls ;  ls -ali mnt) >& find.out ; sleep 0.5 ; killall mid_level ; sleep 0.2 ; cat find.out) & 
+
+LOG_LEVEL=debug ./mid_level -d mnt >& out
+umount mnt || true
+
+#rg -A5 readdir out
+tail -25 out
+cat find.out
